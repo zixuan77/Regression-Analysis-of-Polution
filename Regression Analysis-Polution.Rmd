@@ -1,0 +1,235 @@
+---
+title: "PSTAT 126 Final Assignment"
+author: "Olivia Dong"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+# knit options
+knitr::opts_chunk$set(echo = F,
+                      results = 'markup',
+                      fig.width = 4,
+                      fig.height = 3,
+                      fig.align = 'center',
+                      message = F,
+                      warning = F)
+
+# packages
+library(tidyverse)
+library(modelr)
+library(broom)
+library(faraway)
+```
+
+
+\newpage
+### Background
+
+By now it is widely recognized that air quality impacts health, but this was not always the case. The file `pollution.csv` contains data from an early observational study investigating the relationship between specific pollutants and mortality in U.S. cities. Variable descriptions and units are recorded in the metadata file `pollution-metadata.csv`. All measurements were taken for the period 1959 - 1961.
+
+> McDonald, G.C. and Schwing, R.C. (1973). Instabilities of Regression Estimates Relating Air Pollution to Mortality. Technometrics, 15: 463-481.
+
+```{r, echo = T}
+# read in data and show example rows
+pollution <- read_csv('pollution.csv')
+head(pollution, 3)
+```
+
+In this data the presence of pollutants is reported as *relative pollution potential*, which is calculated by scaling emissions (tons per day per square kilometer) by a dispersion factor based on local conditions (mixing, wind, area, and the like).
+
+\newpage
+### Questions
+
+Respond to each question or task immediately below the prompt in a concise manner -- aim to give as direct a response as possible. Following this, provide, if appropriate, any supporting information helpful in understanding your answer; please limit such supporting information to a brief paragraph and minimal R output (possibly one table, a few simple calculations, or a plot). 
+
+Please include all codes used together with your answer in the .Rmd file (so that they appear in the appendix), but control the code chunks so that *only codes and output that are referenced in your written answers are shown*.
+
+1. Construct a plot of the marginal relationships among the raw data and comment briefly on the plot (identify any notable features).
+```{r, echo=FALSE, fig.height=5, fig.width=6}
+fig1 <- pollution %>%
+  pivot_longer(-c(Mort, City)) %>%
+  ggplot(aes(x = value, y = Mort)) +
+  facet_wrap(~ name, scales = 'free_x') +
+  geom_point(aes())
+fig1
+```
+Though there exists some outliers, it seems that there is a relatively apparent linear relationship between mortality and education level, and between mortality and percentage of nonwhites in the population, and between mortality rate and precipitation. There is a negative relationship between mortality and education, but positive relation between mortality with other two variable mentioned above. There is a less obvious positive linear relationship between mortality and relative pollution potential of SO2. In the figure of mortality rate against NOX, the pattern is not obvious since there seems to be leverage point that is unusual. 
+
+2. Estimate the association between mortality and each of the two pollutants. Describe how you obtained your estimates and be sure to give proper interpretations.
+
+```{r, echo=FALSE,fig.height=5, fig.width=6}
+# fit model
+fit_mort <- lm(Mort ~ Educ + Precip + NonWhite + log(NOX) + log(SO2), data = pollution)
+
+augment(fit_mort, pollution) %>%
+  mutate(NOX = log(NOX),SO2= log(SO2)) %>%
+  pivot_longer(c(Precip,
+                 Educ,
+                 NonWhite,
+                 NOX,
+                 SO2,
+                 .fitted)) %>%
+  ggplot(aes(x = value, y = .std.resid)) +
+  facet_wrap(~ name, scales = 'free_x') +
+  geom_point() +
+  geom_hline(aes(yintercept = 0))
+
+
+lm(Mort ~  Educ + Precip + NonWhite + log(NOX) + log(SO2), data = pollution) %>%
+summary() %>%
+coef()
+
+confint(fit_mort, 'log(SO2)', level = 0.95)
+confint(fit_mort, 'log(NOX)', level = 0.95)
+```
+
+First I fit a linear model for the data to estimate the relationship between mortality and each of the variables. By looking at the residual plot, I noticed that there is a clear fan-shape for SO2, so I did a log transformation on SO2 to fix the model. I also did a log transform on NOX to fix the data. The 95% confidence interval for NOX is from -8.11771 to 21.55057, which means that one unit increase in log of relative pollution potential of oxides of nitrogen is associated with -8.11771 to 21.55057 unit increase in mean total age-adjusted mortality from all causes adjusted for education, precipitation, relative pollution potential of SO2 and percentage of population that is nonwhite.  
+Confidence interval for SO2 is from 0.7409172 to 21.97474, which means that one unit increase in the log of relative pollution potential of sulfur dioxide is associated with 0.7409172 to 21.97474 unit increase in mean total age-adjusted mortality from all causes adjusted for education, precipitation, relative pollution potential of NOX and percentage of population that is nonwhite.
+
+3. How many lives could be saved each year by curbing emissions? Answer each of the questions below.
+
+    i. Estimate the reduction in mortality rate associated with a 50% relative decrease in sulfur dioxide emissions.   
+```{r}
+reduction_SO2 <- -11.3578 * log(0.5)
+reduction_SO2
+```
+Old_mortality-new_mortality = 11.357829(log(SO2) - log(0.5SO2)) = 11.357829(log(SO2) - log(0.5) - log(SO2))= -11.357829log(0.5)=7.8726
+There is a reduction of 7.8726 unit in mortality rate.
+I calculate the mortality rate before and after the 50% reduction of SO2. The difference is 7.8726 unit.
+
+    ii. Estimate the reduction in mortality rate associated with a 50% relative decrease in emissions of oxides of nitrogen.  
+```{r}
+reduction_NOX <- -6.7184 * log(0.5)
+reduction_NOX
+```
+  Old_mortality-new_mortality = 6.716432(log(NOX) - log(0.5NOX)) = 6.716432(log(NOX) - log(0.5) - log(NOX))= -6.716432log(0.5) = 4.6568 
+  There is a reduction of 4.6568 unit in mortality rate.  
+  I calculate the mortality rate before and after the 50% reduction of NOX. The difference is 4.6568 unit.
+    iii. Construct a visualization that conveys the estimated potential lives saved by reducing SO2 emissions. Provide a brief description of your plot.
+```{r}
+curve(-11.3578 * log(1 - x/100),
+from = 1, to = 100,
+xlab = "Reduction in percentage of SO2 emissions",
+ylab = "mortality rate")
+
+
+```
+I calculate the reduction in mortality rate for different reduction in the relative pollution potential for S02. Then I plot the graph with reduction of SO2 on the x axis and reduction of mortality rate on y axis.  
+4. The [EPA reports a 94% decrease in the national average sulfur dioxide concentration between 1980 and 2020](https://www.epa.gov/air-trends/sulfur-dioxide-trends).
+
+    i. Estimate the number of lives saved each year among the current population by this reduction, all else being equal.
+  Old_mortality-new_mortality = 11.357829(log(SO2) - log(0.06SO2)) = 11.357829(log(SO2) - log(0.06) - log(SO2))= -11.357829log(0.06) = 31.954
+  31.965 * popultation = 31.954*3337.81277=106656(from 1980 to 2020)  
+  106656/40=2666
+
+  I use the model to get the change of mortality rate and multiply it by the current population. The number of lives saved by 94% reduction in the relative pollution potential for S02 between 1980 to 2020 among current population is approximately 106656. The number of lives saved for each year is 2666.  
+  
+    ii. What implicit assumptions are made by using metropolitan-level data from 1959-1961 to calculate this estimate?  
+  The first assumption is that the data of metropolitan-level is generalized to the national level. This means that we assume the data in metropolitan is the same as national averge level. 
+  The second assumption is that we assume the data from 1959-1961, which is two years, can be generalized to use for the 30-year period between 1980 to 2020. This means that we assume the data for these two year is the same as data between 1980 and 2020.   
+    iii. Do you think these assumptions are reasonable?   
+    I think it is not quite reasonable. There might be variation in level of pollution in different years. Thirty-year period is long and there might be a significant change in level of pollution.  Also, the condition of pollution in metropolitan might be different from the condition in rural areas. This means that we assume the data for the metropolitan is the same as national average level. 
+    
+
+5. Which other variables, if any, seem associated with mortality? Comment briefly on any apparent associations.  
+The median education for persons 25 years or older, mean annual precipitation, and percentage of population that is nonwhite are associated with the mortality. 
+In the summary of fitted model, the p value for median education for persons 25 years or older is 3.917799e-02 which is smaller than 0.05, which indicates that median education for persons 25 years or older is a significant predictor for mortality rate after accounting for all other variables.
+In the summary of fitted model, the p value for precipitation is 7.500865e-03 which is smaller than 0.05, which indicates that mean annual precipitation is a significant predictor for mortality rate after accounting for all other variables.
+In the summary of fitted model, the p value for percentage of population that is nonwhite is 3.290529e-05 which is smaller than 0.05, which indicates that percentage of population that is nonwhite is also a significant predictor for mortality rate after accounting for all other variables.
+
+6. Are any of the cities in the dataset unusual relative to the others? If so, in what way, and do these cities affect your conclusions?
+```{r, echo=FALSE,fig.height=5, fig.width=8}
+# check for influential points
+studentize_fn <- function(resid, n, p){
+  resid*sqrt((n - p - 1)/(n - p - resid^2))
+}
+
+x_mx2 <- model.matrix(fit_mort)
+
+fit_df2 <- augment(fit_mort,pollution)%>%
+  mutate(obs_index = row_number(),
+         .ext.std.resid = studentize_fn(.std.resid, 
+                                        n = nrow(x_mx2),
+                                        p = ncol(x_mx2) - 1))
+
+p_case2 <- fit_df2 %>%
+  rename(Outlyingness = .ext.std.resid,
+         Leverage = .hat,
+         Influence = .cooksd) %>%
+  pivot_longer(cols = c(Outlyingness, Leverage, Influence)) %>%
+  ggplot(aes(x = City, y = abs(value))) +
+  facet_wrap(~ name, scales = 'free_y', nrow = 3) + 
+  geom_point() +
+  geom_hline(aes(yintercept = 0)) + 
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.25,
+                                   hjust = 1)) + 
+  labs(x = '', y = '') 
+
+
+unusual_obs <- fit_df2 %>% mutate(rowix = row_number()) %>%
+  rename(Outlyingness = .ext.std.resid,
+         Leverage = .hat,
+         Influence = .cooksd) %>%
+  pivot_longer(cols = c(Outlyingness, Leverage, Influence)) %>%
+  group_by(name) %>%
+  slice_max(order_by = abs(value), n = 1) %>% # find the largest
+  ungroup()
+
+
+
+p_case2 + geom_point(data = unusual_obs, 
+                       color = 'red', 
+                       size = 2)
+unusual_obs_long2 <- unusual_obs %>%
+  rename(case = name) %>%
+  select(Mort, City, Precip,Educ,NonWhite, NOX, SO2, case) %>%
+  pivot_longer(cols = c(Precip,Educ,NonWhite,NOX, SO2))
+
+# highlight unusual points
+fig1+ 
+  geom_point(data = unusual_obs_long2, 
+                       aes(shape = case), 
+                       size = 4, alpha = 0.5)
+
+unusual_ix <- pull(unusual_obs,rowix) %>% unique()
+unusual_ix
+lm(Mort ~  Educ + Precip + NonWhite + log(NOX) + log(SO2), data = pollution[-60,]) %>%
+summary() %>%
+coef() # neworleans
+lm(Mort ~  Educ + Precip + NonWhite + log(NOX) + log(SO2), data = pollution) %>%
+summary() %>%
+coef()
+
+```
+
+
+New Orleans is the unusual city which is leverage and influence point. It also has maximum external standard residual, but it does not diverge too much from other city. Therefore, it is not a influencial outlier. The leverage point is an extreme predictor x value. The influence point might have influence on our result of regression analysis. In the second figure, I marked up the unusual points by different shapes. In the plot for NOX, the leverage seems to be influencial since it is likely to pull down the fitted line a little. In the plot of SO2, the point might be influencial since it will pull up the fitted line a little. After I remove this data point, the estimate for adjusted NOX changed from positive to negative. The estimate for SO2 is bigger than before.
+7. Are any of the variables besides mortality closely related with one another? How might this affect your analysis (if at all)?
+```{r}
+pollution %>%
+  ggplot(aes(x = Precip, y = SO2)) +
+  geom_point() 
+
+pollution %>%
+  ggplot(aes(x = Precip, y = NOX)) +
+  geom_point() + 
+  geom_smooth(span = 1.2, se = F)
+
+lm(Mort ~  Educ + NonWhite + log(NOX) + log(SO2), data = pollution) %>%
+summary() %>%
+coef()
+```
+It seems that there might exist a relationship between mean annual precipitation and the relative pollution potential of oxides of nitrogen. If these two are closely correlated, there might be a difference in coefficient between the model where we include both predictors and the model where we just include one of them. When we exclude the precipitation from the model, the estimate for NOX changed from positive to negative.
+
+
+
+
+\newpage
+## Code appendix
+
+```{r appendix, ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
