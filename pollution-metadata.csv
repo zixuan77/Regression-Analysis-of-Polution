@@ -1,0 +1,8 @@
+Variable name,Description,Type,Units
+City,city,chr,na
+Mort,total age-adjusted mortality from all causes,num,deaths per 100k during 1959-1961
+Precip,mean annual precipitation,num,inches
+Educ,median education for persons 25 years or older,num,years of schooling
+NonWhite,percentage of population that is nonwhite,num,percent
+NOX,relative pollution potential of oxides of nitrogen,num,(adjusted) tons per day per km
+SO2,relative pollution potential of sulfur dioxide,num,(adjusted) tons per day per km
